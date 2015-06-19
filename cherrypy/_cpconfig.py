@@ -306,12 +306,33 @@ Config.namespaces["engine"] = _engine_namespace_handler
 
 def _tree_namespace_handler(k, v):
     """Namespace handler for the 'tree' config namespace."""
-    if isinstance(v, dict):
-        for script_name, app in v.items():
-            cherrypy.tree.graft(app, script_name)
-            cherrypy.engine.log("Mounted: %s on %s" %
-                                (app, script_name or "/"))
+    engine = cherrypy.engine
+    if k == 'mount':
+        if not isinstance(v, list):
+            raise TypeError(
+                "tree.mount value should be list, like [(script_name, root, config), ...]")
+
+        for mount_point in v:
+            if not isinstance(mount_point, tuple) or len(mount_point) < 1:
+                raise TypeError(
+                    "tree.mount point value should be tuple, like (script_name, root, config). root and config is optional")
+            root = None
+            conf = None
+            script_name = mount_point[0]
+            if len(mount_point) >= 2:
+                root = mount_point[1]
+            elif len(mount_point) >= 3:
+                conf = mount_point[2]
+            cherrypy.tree.mount(root, script_name, conf)
+    elif k == 'graft':
+        if isinstance(v, dict):
+            for script_name, app in v.items():
+                cherrypy.tree.graft(app, script_name)
+                cherrypy.engine.log("Mounted: %s on %s" %
+                                    (app, script_name or "/"))
+        else:
+            cherrypy.tree.graft(v, v.script_name)
+            cherrypy.engine.log("Mounted: %s on %s" % (v, v.script_name or "/"))
     else:
-        cherrypy.tree.graft(v, v.script_name)
-        cherrypy.engine.log("Mounted: %s on %s" % (v, v.script_name or "/"))
+        engine.log("WARNING: unsupported config: tree.%s" %(k))
 Config.namespaces["tree"] = _tree_namespace_handler
